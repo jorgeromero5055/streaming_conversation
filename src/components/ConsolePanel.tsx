@@ -23,8 +23,11 @@ export function ConsolePanel() {
   };
 
   return (
-    <div>
-      <h1>ConsolePanel</h1>
+    <div className="console">
+      {" "}
+      {/* 🔵 a styling hook the CSS targets */}
+      <h1>Agent Console</h1>{" "}
+      {/* ⚪ real title instead of the dev placeholder */}
       {snapshot.error && (
         <p className="error" role="alert">
           {snapshot.error}
