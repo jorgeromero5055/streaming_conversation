@@ -25,6 +25,11 @@ export function ConsolePanel() {
   return (
     <div>
       <h1>ConsolePanel</h1>
+      {snapshot.error && (
+        <p className="error" role="alert">
+          {snapshot.error}
+        </p>
+      )}
       <StreamingMessage
         text={snapshot.text}
         isStreaming={snapshot.isStreaming}

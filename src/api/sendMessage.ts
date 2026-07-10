@@ -31,9 +31,19 @@ const SCRIPT: Frame[] = [
 //    cancel function. This is the contract components depend on.
 //    Level: explain it + rebuild it. This never changes, even in v2.
 export function sendMessage(
-  _userText: string,
+  userText: string,
   onUpdate: (state: ConversationState) => void
 ): () => void {
+  if (userText.toLowerCase().includes("error")) {
+    onUpdate({
+      text: "",
+      isStreaming: false,
+      steps: [],
+      error: "Something went wrong. Please try again.",
+    });
+    return () => {}; // nothing to cancel
+  }
+
   const words = REPLY.split(" ");
 
   // 🔵 PATTERN — handing a snapshot back to the caller.
