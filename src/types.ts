@@ -1,9 +1,18 @@
-// The data contract that flows through the seam (see ./api/sendMessage).
-//
-// This is what makes the seam a seam: sendMessage() promises to RETURN this
-// shape, components promise to RENDER this shape, and neither side cares what's
-// on the other side of the boundary. Get this right and v2 needs no component
-// changes.
-//
-// Intentionally empty — designing this shape is the next step.
-export {}
+// One action step's status.
+export type StepStatus = "pending" | "running" | "done";
+
+// One row in the action tracker.
+export interface ActionStepData {
+  id: string; // stable key so React can track rows
+  label: string; // e.g. "Searching docs"
+  status: StepStatus;
+}
+
+// The full snapshot of the panel at one instant — everything the UI needs to
+// redraw itself. sendMessage() emits a stream of THESE.
+export interface ConversationState {
+  text: string; // reply so far (grows token by token)
+  isStreaming: boolean; // true while typing → drives the typing indicator
+  steps: ActionStepData[]; // the tracker rows
+  error: string | null; // null = fine; a message = show error state
+}
