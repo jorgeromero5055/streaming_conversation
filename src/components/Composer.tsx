@@ -15,6 +15,7 @@ export function Composer({ onSend }: { onSend: (text: string) => void }) {
   return (
     <div className="composer">
       <input
+        aria-label="Message to the agent"
         value={text} // 🔵 state drives the input
         onChange={(e) => setText(e.target.value)} // 🔵 typing updates state
         onKeyDown={(e) => {
