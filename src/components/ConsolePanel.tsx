@@ -1,14 +1,11 @@
 // src/components/ConsolePanel.tsx
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import type { ConversationState } from "../types";
+import { sendMessage } from "../api/sendMessage";
 import { StreamingMessage } from "./StreamingMessage";
 import { ActionTracker } from "./ActionTracker";
 import { Composer } from "./Composer";
-import type { ConversationState } from "../types";
-import { sendMessage } from "../api/sendMessage";
 
-// ⚪ BOILERPLATE
-//    Understand: "a blank starting snapshot — the screen before anything happens."
-//    Level: know its job. Don't memorize the fields.
 const EMPTY: ConversationState = {
   text: "",
   isStreaming: false,
@@ -17,24 +14,14 @@ const EMPTY: ConversationState = {
 };
 
 export function ConsolePanel() {
-  // 🔵 PATTERN — the heart of this step.
-  //    Understand: `snapshot` holds the current data; `setSnapshot` changes it,
-  //    and changing it repaints the screen. You'll write useState in every component.
-  //    Level: explain it + rebuild it from scratch.
   const [snapshot, setSnapshot] = useState<ConversationState>(EMPTY);
 
-  // 🔵 PATTERN — "run some code when the component appears."
-  //    Understand: on mount, start sendMessage and give it setSnapshot as the
-  //    callback (so every snapshot flows into state). Return the cancel function
-  //    so React stops the timer when the component goes away (cleanup).
-  //    Level: explain it + rebuild it.
-  useEffect(() => {
-    const cancel = sendMessage("hello", setSnapshot);
-    return cancel;
-  }, []); // ⚪ the [] just means "run once." Know that; move on.
+  // 🔵 the parent's handler. When Composer calls onSend, THIS runs — it starts
+  //    the stream with the user's text. Level: own this (child→parent in action).
+  const handleSend = (text: string) => {
+    sendMessage(text, setSnapshot);
+  };
 
-  // ⚪ TEMPORARY DISPLAY — just to SEE state working. We move this into the real
-  //    components next step. Level: don't invest here, it's scaffolding.
   return (
     <div>
       <h1>ConsolePanel</h1>
@@ -43,17 +30,7 @@ export function ConsolePanel() {
         isStreaming={snapshot.isStreaming}
       />
       <ActionTracker steps={snapshot.steps} />
-      <Composer />
+      <Composer onSend={handleSend} />
     </div>
-    // <div>
-    //   <h1>ConsolePanel</h1>
-    //   <p>{snapshot.text}</p>
-    //   <p>{snapshot.isStreaming ? "typing…" : "idle"}</p>
-    //   {snapshot.steps.map((s) => (
-    //     <div key={s.id}>
-    //       {s.label}: {s.status}
-    //     </div>
-    //   ))}
-    // </div>
   );
 }
