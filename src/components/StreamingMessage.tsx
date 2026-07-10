@@ -1,5 +1,3 @@
-// src/components/StreamingMessage.tsx
-// 🔵 same props pattern — receives text + isStreaming.
 export function StreamingMessage({
   text,
   isStreaming,
@@ -10,8 +8,7 @@ export function StreamingMessage({
   return (
     <div className="streaming-message">
       {text}
-      {isStreaming && <span className="cursor">▋</span>}{" "}
-      {/* ⚪ blinking cursor, styled later */}
+      {isStreaming && <span className="cursor">▋</span>}
     </div>
   );
 }
