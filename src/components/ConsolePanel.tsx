@@ -1,5 +1,8 @@
 // src/components/ConsolePanel.tsx
 import { useState, useEffect } from "react";
+import { StreamingMessage } from "./StreamingMessage";
+import { ActionTracker } from "./ActionTracker";
+import { Composer } from "./Composer";
 import type { ConversationState } from "../types";
 import { sendMessage } from "../api/sendMessage";
 
@@ -35,13 +38,22 @@ export function ConsolePanel() {
   return (
     <div>
       <h1>ConsolePanel</h1>
-      <p>{snapshot.text}</p>
-      <p>{snapshot.isStreaming ? "typing…" : "idle"}</p>
-      {snapshot.steps.map((s) => (
-        <div key={s.id}>
-          {s.label}: {s.status}
-        </div>
-      ))}
+      <StreamingMessage
+        text={snapshot.text}
+        isStreaming={snapshot.isStreaming}
+      />
+      <ActionTracker steps={snapshot.steps} />
+      <Composer />
     </div>
+    // <div>
+    //   <h1>ConsolePanel</h1>
+    //   <p>{snapshot.text}</p>
+    //   <p>{snapshot.isStreaming ? "typing…" : "idle"}</p>
+    //   {snapshot.steps.map((s) => (
+    //     <div key={s.id}>
+    //       {s.label}: {s.status}
+    //     </div>
+    //   ))}
+    // </div>
   );
 }

@@ -1,10 +1,13 @@
+// src/components/ActionStep.tsx
+import type { ActionStepData } from "../types";
 import { StatusBadge } from "./StatusBadge";
 
-// One row in the action tracker: icon + label + status. Reused 2-3 times.
-export function ActionStep() {
+// 🔵 same props pattern — receives one step, passes its status down to StatusBadge.
+export function ActionStep({ step }: { step: ActionStepData }) {
   return (
-    <div>
-      ActionStep <StatusBadge />
+    <div className="action-step">
+      <span>{step.label}</span>
+      <StatusBadge status={step.status} />
     </div>
   );
 }
