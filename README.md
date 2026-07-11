@@ -111,9 +111,26 @@ reused components · keyboard + axe · component tests green · CI on push · th
 **Out of scope for v1 (deliberately):** real LLM backend, multiple agents, a second screen,
 auth, persistence, multi-turn memory, theming/animations, deploy.
 
-**v2 — to be scoped.** The next milestone will begin by swapping the mock inside
-`sendMessage()` for a real streaming LLM; the seam is built so that's an internal change, not
-a rewrite. Full v2 scope will be defined once v1 is sealed. _(placeholder)_
+**v2 — make it real.** Swap the mock inside `sendMessage()` for a real streaming LLM. Done line
+(all must tick, then stop and tag `v2`):
+
+1. Restructure to a monorepo: v1 moves into `frontend/`, a new `backend/` sits beside it, each
+   with its own `package.json`, under one repo root. (Just two folders — no workspaces tooling.)
+2. Backend proxy exposes one endpoint that calls a real streaming LLM and streams tokens back.
+3. The API key lives only in server env — it never appears in any browser-shipped code.
+4. Real token deltas are folded into the existing `ConversationState` shape, so the four
+   components render with zero edits. (This is the proof the seam worked.)
+5. A network/LLM failure surfaces through the existing error state.
+6. Deployed, with a live demo link in this README.
+7. Single exchange only — no history or multi-turn (that stays a later milestone).
+8. One test covers the delta → snapshot mapping (the seam itself); the live network call is not
+   unit-tested.
+
+**v3 — make it agentic.** Give the model real tools so each tool call drives a live
+`ActionStep` (pending → running → done) as it actually happens.
+
+**Later / maybe:** multi-turn conversation history (a model-level change — its own milestone),
+multiple agents, off-console surface, design-system extraction.
 
 ## Running locally
 
