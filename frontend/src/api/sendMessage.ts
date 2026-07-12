@@ -1,60 +1,81 @@
 import type { ConversationState, StepStatus } from "../types";
 
-// Mock reply the fake stream types out in v1; replaced by a real LLM in v2.
-const REPLY = "Sure — here is your response, streaming in one word at a time.";
-
-// One frame of the mock timeline: how much text to reveal + each step's status.
-type Frame = { words: number; s1: StepStatus; s2: StepStatus; streaming: boolean };
-
-// The scripted timeline the mock plays, one frame per tick.
-const SCRIPT: Frame[] = [
-  { words: 0, s1: "pending", s2: "pending", streaming: true },
-  { words: 3, s1: "running", s2: "pending", streaming: true },
-  { words: 6, s1: "done", s2: "running", streaming: true },
-  { words: 10, s1: "done", s2: "running", streaming: true },
-  { words: 13, s1: "done", s2: "done", streaming: true },
-  { words: 13, s1: "done", s2: "done", streaming: false },
-];
-
-// The seam: streams conversation snapshots to `onUpdate` and returns a cancel
-// function. v1 plays a mock timeline; v2 swaps the internals for a real LLM
-// without changing this signature or the snapshot shape.
 export function sendMessage(
   userText: string,
-  onUpdate: (state: ConversationState) => void,
+  onUpdate: (state: ConversationState) => void
 ): () => void {
-  if (userText.toLowerCase().includes("error")) {
-    onUpdate({ text: "", isStreaming: false, steps: [], error: "Something went wrong. Please try again." });
-    return () => {}; // nothing to cancel
-  }
+  const controller = new AbortController(); // ⬅️ NEW
 
-  const words = REPLY.split(" ");
+  let text = "";
+  const steps = [
+    {
+      id: "s1",
+      label: "Understanding your request",
+      status: "running" as StepStatus,
+    },
+    {
+      id: "s2",
+      label: "Composing a response",
+      status: "pending" as StepStatus,
+    },
+  ];
 
-  // Build a full snapshot from a frame and hand it to the caller.
-  const emit = (f: Frame) => {
-    onUpdate({
-      text: words.slice(0, f.words).join(" "),
-      isStreaming: f.streaming,
-      steps: [
-        { id: "s1", label: "Understanding your request", status: f.s1 },
-        { id: "s2", label: "Composing a response", status: f.s2 },
-      ],
-      error: null,
-    });
+  const emit = (isStreaming: boolean, error: string | null = null) => {
+    onUpdate({ text, isStreaming, steps: steps.map((s) => ({ ...s })), error });
   };
 
-  // Play the first frame now, then one every 450ms until the script ends.
-  let tick = 0;
-  emit(SCRIPT[tick]);
-  const timer = setInterval(() => {
-    tick++;
-    if (tick >= SCRIPT.length) {
-      clearInterval(timer);
-      return;
-    }
-    emit(SCRIPT[tick]);
-  }, 450);
+  emit(true);
 
-  // Cancel handle: stop the stream (the caller uses this for cleanup).
-  return () => clearInterval(timer);
+  (async () => {
+    try {
+      // ⬅️ NEW
+      const res = await fetch("/api/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: userText }),
+        signal: controller.signal, // ⬅️ NEW
+      });
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let firstToken = true;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const messages = buffer.split("\n\n");
+        buffer = messages.pop() ?? "";
+
+        for (const message of messages) {
+          const line = message.trim();
+          if (!line.startsWith("data:")) continue;
+
+          const payload = JSON.parse(line.slice(5).trim());
+          if (payload.text) {
+            if (firstToken) {
+              steps[0].status = "done";
+              steps[1].status = "running";
+              firstToken = false;
+            }
+            text += payload.text;
+            emit(true);
+          }
+        }
+      }
+
+      steps[0].status = "done";
+      steps[1].status = "done";
+      emit(false);
+    } catch {
+      // ⬅️ NEW
+      if (!controller.signal.aborted) {
+        emit(false, "Something went wrong. Please try again.");
+      }
+    }
+  })();
+
+  return () => controller.abort(); // ⬅️ CHANGED (was () => {})
 }
