@@ -21,22 +21,33 @@ app.post("/api/message", async (req, res) => {
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
-  // 🔵 call Gemini in streaming mode — this returns token chunks, not one big reply
-  const stream = await ai.models.generateContentStream({
-    model: "gemini-flash-latest",
-    contents: userText,
-  });
+  try {
+    // 🔵 call Gemini in streaming mode — this returns token chunks, not one big reply
+    const stream = await ai.models.generateContentStream({
+      model: "gemini-flash-latest",
+      contents: userText,
+    });
 
-  // 🔵 THE streaming loop: each chunk is a token delta; push it to the browser as an SSE message
-  for await (const chunk of stream) {
-    const text = chunk.text;
-    if (text) {
-      res.write(`data: ${JSON.stringify({ text })}\n\n`);
+    // 🔵 THE streaming loop: each chunk is a token delta; push it to the browser as an SSE message
+    for await (const chunk of stream) {
+      const text = chunk.text;
+      if (text) {
+        res.write(`data: ${JSON.stringify({ text })}\n\n`);
+      }
     }
-  }
 
-  res.write(`data: ${JSON.stringify({ done: true })}\n\n`); // 🔵 signal the stream is finished
-  res.end();
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`); // 🔵 signal the stream is finished
+    res.end();
+  } catch (err) {
+    // ⬅️ NEW
+    console.error("Gemini stream failed:", err);
+    res.write(
+      `data: ${JSON.stringify({
+        error: "The assistant failed to respond.",
+      })}\n\n`
+    );
+    res.end();
+  }
 });
 
 const PORT = 3000; // ⚪ the port the server listens on

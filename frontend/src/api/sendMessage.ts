@@ -36,6 +36,12 @@ export function sendMessage(
         signal: controller.signal, // ⬅️ NEW
       });
 
+      if (!res.ok) {
+        // ⬅️ NEW
+        emit(false, "Something went wrong. Please try again.");
+        return; // no stream to read — bail out
+      }
+
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -54,6 +60,13 @@ export function sendMessage(
           if (!line.startsWith("data:")) continue;
 
           const payload = JSON.parse(line.slice(5).trim());
+
+          if (payload.error) {
+            // ⬅️ NEW
+            emit(false, payload.error); // surface it through the error field
+            return; // stop consuming — the stream is over
+          }
+
           if (payload.text) {
             if (firstToken) {
               steps[0].status = "done";
