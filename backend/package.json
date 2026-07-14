@@ -4,16 +4,17 @@
   "type": "module",
   "dependencies": {
     "@google/genai": "^2.11.0",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "tsx": "^4.23.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.1",
-    "tsx": "^4.23.0",
     "typescript": "^7.0.2"
   },
   "scripts": {
     "dev": "tsx watch --env-file=.env src/server.ts",
+    "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit"
   }
 }
