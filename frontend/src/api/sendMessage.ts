@@ -1,10 +1,13 @@
 import type { ConversationState, StepStatus } from "../types";
 
+// The single seam between the UI and the backend: streams conversation snapshots
+// to `onUpdate` and returns a cancel function. Components render whatever comes
+// out and never know the reply arrives over a network stream.
 export function sendMessage(
   userText: string,
   onUpdate: (state: ConversationState) => void
 ): () => void {
-  const controller = new AbortController(); // ⬅️ NEW
+  const controller = new AbortController();
 
   let text = "";
   const steps = [
@@ -20,6 +23,7 @@ export function sendMessage(
     },
   ];
 
+  // Emit a fresh copy each time so React never receives a snapshot we later mutate.
   const emit = (isStreaming: boolean, error: string | null = null) => {
     onUpdate({ text, isStreaming, steps: steps.map((s) => ({ ...s })), error });
   };
@@ -28,18 +32,16 @@ export function sendMessage(
 
   (async () => {
     try {
-      // ⬅️ NEW
       const res = await fetch("/api/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: userText }),
-        signal: controller.signal, // ⬅️ NEW
+        signal: controller.signal,
       });
 
       if (!res.ok) {
-        // ⬅️ NEW
         emit(false, "Something went wrong. Please try again.");
-        return; // no stream to read — bail out
+        return;
       }
 
       const reader = res.body!.getReader();
@@ -52,6 +54,8 @@ export function sendMessage(
         const { value, done } = await reader.read();
         if (done) break;
 
+        // A network chunk may hold partial or multiple SSE messages; split on the
+        // blank-line delimiter and keep any incomplete tail for the next read.
         buffer += decoder.decode(value, { stream: true });
         const messages = buffer.split("\n\n");
         buffer = messages.pop() ?? "";
@@ -63,15 +67,10 @@ export function sendMessage(
           const payload = JSON.parse(line.slice(5).trim());
 
           if (payload.error) {
-            // ⬅️ NEW
-            emit(false, payload.error); // surface it through the error field
-            return; // stop consuming — the stream is over
+            emit(false, payload.error);
+            return;
           }
-
-          if (payload.done) {
-            // ⬅️ NEW — the backend said "I finished cleanly"
-            sawDone = true;
-          }
+          if (payload.done) sawDone = true;
 
           if (payload.text) {
             if (firstToken) {
@@ -85,21 +84,22 @@ export function sendMessage(
         }
       }
 
+      // Stream closed without a completion marker → it was cut off.
       if (!sawDone) {
-        // stream closed WITHOUT a done → cut off
         emit(false, "The response was cut off. Please try again.");
         return;
       }
+
       steps[0].status = "done";
       steps[1].status = "done";
       emit(false);
     } catch {
-      // ⬅️ NEW
+      // Ignore deliberate cancellations; surface only real failures.
       if (!controller.signal.aborted) {
         emit(false, "Something went wrong. Please try again.");
       }
     }
   })();
 
-  return () => controller.abort(); // ⬅️ CHANGED (was () => {})
+  return () => controller.abort();
 }

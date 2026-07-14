@@ -1,34 +1,31 @@
-import express from "express"; // 🔵 the framework
+import express from "express";
 import { GoogleGenAI } from "@google/genai";
 
 const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) throw new Error("GEMINI_API_KEY is missing"); // 🔵 guard: fail loud if the key didn't load
+if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
 const ai = new GoogleGenAI({ apiKey });
 
-const app = express(); // 🔵 create the app
-app.use(express.json()); // ⚪ lets the server read JSON request bodies
+const app = express();
+app.use(express.json());
 
-// 🔵 one route — a health check so we can prove the server is alive
 app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
 app.post("/api/message", async (req, res) => {
-  const userText = req.body.text; // 🔵 read the user's message from the request body
+  const userText = req.body.text;
 
-  // ⚪ SSE headers — tell the browser "this is a stream, keep the line open"
+  // Server-Sent Events: hold one connection open and stream messages over it.
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
   try {
-    // 🔵 call Gemini in streaming mode — this returns token chunks, not one big reply
     const stream = await ai.models.generateContentStream({
       model: "gemini-flash-latest",
       contents: userText,
     });
 
-    // 🔵 THE streaming loop: each chunk is a token delta; push it to the browser as an SSE message
     for await (const chunk of stream) {
       const text = chunk.text;
       if (text) {
@@ -36,11 +33,12 @@ app.post("/api/message", async (req, res) => {
       }
     }
 
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`); // 🔵 signal the stream is finished
+    // Explicit completion marker; the client reads its absence as a cut-off stream.
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (err) {
-    // ⬅️ NEW
     console.error("Gemini stream failed:", err);
+    // Headers are already sent, so the error rides the stream, not an HTTP status.
     res.write(
       `data: ${JSON.stringify({
         error: "The assistant failed to respond.",
@@ -50,6 +48,7 @@ app.post("/api/message", async (req, res) => {
   }
 });
 
+// Bind to the host-assigned port in production; fall back to 3000 locally.
 const PORT = Number(process.env.PORT) || 3000;
 app.listen(PORT, () => {
   console.log(`Backend listening on http://localhost:${PORT}`);

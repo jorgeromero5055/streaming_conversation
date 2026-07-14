@@ -34,10 +34,10 @@ describe("sendMessage", () => {
     const snapshots: ConversationState[] = [];
     sendMessage("hi", (s) => snapshots.push(s));
 
-    await vi.waitFor(() => expect(snapshots.at(-1)?.isStreaming).toBe(false)); // wait: done?
+    await vi.waitFor(() => expect(snapshots.at(-1)?.isStreaming).toBe(false));
 
     const final = snapshots.at(-1)!;
-    expect(final.text).toBe("Hello there"); // assert: correct?
+    expect(final.text).toBe("Hello there");
     expect(final.error).toBeNull();
   });
 
