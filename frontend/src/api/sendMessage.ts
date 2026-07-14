@@ -46,6 +46,7 @@ export function sendMessage(
       const decoder = new TextDecoder();
       let buffer = "";
       let firstToken = true;
+      let sawDone = false;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -67,6 +68,11 @@ export function sendMessage(
             return; // stop consuming — the stream is over
           }
 
+          if (payload.done) {
+            // ⬅️ NEW — the backend said "I finished cleanly"
+            sawDone = true;
+          }
+
           if (payload.text) {
             if (firstToken) {
               steps[0].status = "done";
@@ -79,6 +85,11 @@ export function sendMessage(
         }
       }
 
+      if (!sawDone) {
+        // stream closed WITHOUT a done → cut off
+        emit(false, "The response was cut off. Please try again.");
+        return;
+      }
       steps[0].status = "done";
       steps[1].status = "done";
       emit(false);
