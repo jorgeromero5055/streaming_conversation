@@ -8,6 +8,9 @@ Built as a scoped practice project focused on the skills an AI-native, agentic/c
 UI actually needs: streaming state, a live status tracker, accessible-by-default components,
 and an architecture that swaps a mock for a real backend without touching the UI.
 
+**🔗 Live demo:** https://streaming-conversation-1.onrender.com
+_(First load may take ~50s while the free backend wakes from idle.)_
+
 ![Agent Console](docs/screenshot.png)
 
 ## The core idea: one seam
@@ -23,10 +26,11 @@ Composer ──▶ sendMessage(text, onUpdate) ──▶ onUpdate(snapshot) ─�
                         v2: a real streaming LLM endpoint  (only the INSIDE changes)
 ```
 
-- **v1 (this repo):** `sendMessage()` emits fake tokens on a timer and flips the action
-  steps through their states.
-- **v2:** only the *inside* of `sendMessage()` is rewritten to call a real streaming LLM.
-  Because the data shape it emits is unchanged, **no component changes.**
+- **v1:** `sendMessage()` emitted fake tokens on a timer and flipped the action steps
+  through their states.
+- **v2 (current):** only the *inside* of `sendMessage()` was rewritten to call a real
+  streaming LLM (Google Gemini) behind a key-holding backend proxy. The data shape it emits
+  is unchanged, so **not a single component changed** — the seam held.
 
 This boundary is deliberate. Mock logic is never scattered inside components — that seam is
 the whole point of the design.
@@ -111,20 +115,17 @@ reused components · keyboard + axe · component tests green · CI on push · th
 **Out of scope for v1 (deliberately):** real LLM backend, multiple agents, a second screen,
 auth, persistence, multi-turn memory, theming/animations, deploy.
 
-**v2 — make it real.** Swap the mock inside `sendMessage()` for a real streaming LLM. Done line
-(all must tick, then stop and tag `v2`):
+**v2 — make it real (done).** The mock inside `sendMessage()` was replaced with a real
+streaming LLM (Google Gemini) behind a key-holding backend proxy, deployed live:
 
-1. Restructure to a monorepo: v1 moves into `frontend/`, a new `backend/` sits beside it, each
-   with its own `package.json`, under one repo root. (Just two folders — no workspaces tooling.)
-2. Backend proxy exposes one endpoint that calls a real streaming LLM and streams tokens back.
-3. The API key lives only in server env — it never appears in any browser-shipped code.
-4. Real token deltas are folded into the existing `ConversationState` shape, so the four
-   components render with zero edits. (This is the proof the seam worked.)
-5. A network/LLM failure surfaces through the existing error state.
-6. Deployed, with a live demo link in this README.
-7. Single exchange only — no history or multi-turn (that stays a later milestone).
-8. One test covers the delta → snapshot mapping (the seam itself); the live network call is not
-   unit-tested.
+1. Restructured into a monorepo — `frontend/` + `backend/`, each with its own `package.json`.
+2. Backend proxy streams tokens from Gemini over Server-Sent Events (SSE).
+3. The API key lives only in server env — never in browser-shipped code.
+4. Real token deltas fold into the existing `ConversationState` shape — **zero component edits.**
+5. Network / LLM failures (including cut-off streams) surface through the existing error state.
+6. Deployed on Render (static frontend + Node backend), CI/CD on push. Live link above.
+7. Single exchange only — no multi-turn (still a later milestone).
+8. The delta → snapshot mapping is covered by tests; the live network call is not.
 
 **v3 — make it agentic.** Give the model real tools so each tool call drives a live
 `ActionStep` (pending → running → done) as it actually happens.
@@ -134,11 +135,22 @@ multiple agents, off-console surface, design-system extraction.
 
 ## Running locally
 
-Requires Node 22 (see `.nvmrc`).
+Requires Node 22 (see `.nvmrc`). The app is a monorepo — frontend and backend run separately.
+
+**Backend** (needs a Google Gemini API key):
 
 ```bash
-nvm use          # or: nvm install 22
+cd backend
 npm install
-npm run dev      # start the dev server
+echo "GEMINI_API_KEY=your_key_here" > .env
+npm run dev      # http://localhost:3000
+```
+
+**Frontend:**
+
+```bash
+cd frontend
+npm install
+npm run dev      # http://localhost:5173  (proxies /api to the backend)
 npm test         # run the test suite
 ```
