@@ -91,13 +91,37 @@ ConsolePanel            holds state, calls the seam, arranges the layout
 - **Plain CSS** — components are styled from scratch (no UI library) on purpose, using CSS
   variables, flexbox, and a `state → class → color` pattern for the status pills.
 
+## Backend & deployment decisions
+
+- **Node + TypeScript backend (Express)** — same language as the frontend, so the
+  `ConversationState` contract is shared across the network. A "backend-for-frontend" proxy keeps
+  the LLM call (and its key) server-side.
+- **Server-Sent Events (SSE)** for streaming — a one-way server→client token stream is a clean fit
+  for LLM output, and simpler than WebSockets for this.
+- **API key server-side only** — a frontend bundle is *public* (env vars are baked in at build time
+  and shipped to the browser), so secrets can't live there. The backend holds the key and proxies
+  the model.
+- **Prod calls the backend directly (CORS); dev uses a Vite proxy** — a static-site CDN proxy
+  *buffers* responses, which breaks SSE streaming, so in production the browser calls the backend
+  origin directly and the backend allows it via CORS. The backend URL is environment-specific config
+  (a `VITE_API_BASE` build-time env var); the Vite dev proxy handles local.
+- **Render, two services** — the frontend deploys as a static site, the backend as a persistent Node
+  service (static files vs. a running process → different host types). Both auto-deploy on push, with
+  CI type-checking both first.
+
 ## Testing
 
-Tests target where the *logic* lives, not every line. `Composer` has real behavior (guards,
-Enter/click paths, clearing) so it gets the most coverage, including the edge case (empty
-input sends nothing). Presentational components get a single render check. Accessibility is
-tested with axe as a baseline — with the understanding that automated tools are a floor, not
-a ceiling, so the keyboard flow is also verified by hand.
+Tests target where the *logic* lives, not every line.
+
+- **Components** — `Composer` has real behavior (input guards, Enter/click paths, clearing), so it
+  gets the most coverage, including the edge case (empty input sends nothing). Presentational
+  components get a single render check.
+- **The seam (`sendMessage`)** — the delta→snapshot mapping is unit-tested by *mocking `fetch`* with
+  a fake SSE stream (no live network). It asserts token deltas accumulate into the reply, and covers
+  the error and cut-off branches. The live model call is deliberately *not* unit-tested — that would
+  be testing the network, not our logic.
+- **Accessibility** — axe runs as a baseline in CI, with the understanding that automated tools are a
+  floor, not a ceiling, so the keyboard flow is also verified by hand.
 
 ## Accessibility
 
