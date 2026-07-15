@@ -23,7 +23,7 @@ app.post("/api/message", async (req, res) => {
 
   try {
     const stream = await ai.models.generateContentStream({
-      model: "gemini-flash-latest",
+      model: "gemini-3.1-flash-lite",
       contents: userText,
     });
 
