@@ -1,5 +1,7 @@
 import type { ConversationState, StepStatus } from "../types";
 
+const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+
 // The single seam between the UI and the backend: streams conversation snapshots
 // to `onUpdate` and returns a cancel function. Components render whatever comes
 // out and never know the reply arrives over a network stream.
@@ -32,7 +34,7 @@ export function sendMessage(
 
   (async () => {
     try {
-      const res = await fetch("/api/message", {
+      const res = await fetch(`${API_BASE}/api/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: userText }),

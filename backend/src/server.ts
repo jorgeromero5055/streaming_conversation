@@ -1,11 +1,13 @@
 import express from "express";
 import { GoogleGenAI } from "@google/genai";
+import cors from "cors";
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
 const ai = new GoogleGenAI({ apiKey });
 
 const app = express();
+app.use(cors({ origin: "https://streaming-conversation-1.onrender.com" }));
 app.use(express.json());
 
 app.get("/api/health", (req, res) => {
