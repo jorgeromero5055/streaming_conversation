@@ -23,14 +23,19 @@ real or mocked.**
 Composer ──▶ sendMessage(text, onUpdate) ──▶ onUpdate(snapshot) ──▶ React state ──▶ UI repaints
                      │
                      └─ v1: fake tokens on a timer
-                        v2: a real streaming LLM endpoint  (only the INSIDE changes)
+                        v2: a real streaming LLM endpoint
+                        v3: a real agentic tool-calling loop  (only the INSIDE changes)
 ```
 
 - **v1:** `sendMessage()` emitted fake tokens on a timer and flipped the action steps
   through their states.
-- **v2 (current):** only the *inside* of `sendMessage()` was rewritten to call a real
+- **v2:** only the *inside* of `sendMessage()` was rewritten to call a real
   streaming LLM (Google Gemini) behind a key-holding backend proxy. The data shape it emits
   is unchanged, so **not a single component changed** — the seam held.
+- **v3 (current):** the *inside* of `sendMessage()` now folds real **tool-call events** into
+  `steps`. The backend runs an agentic loop — the model calls real tools, each result feeds
+  back until it answers — streaming every tool's lifecycle. The tracker went from *cosmetic*
+  (v2) to *real*, again with **zero component changes**.
 
 This boundary is deliberate. Mock logic is never scattered inside components — that seam is
 the whole point of the design.
@@ -151,8 +156,21 @@ streaming LLM (Google Gemini) behind a key-holding backend proxy, deployed live:
 7. Single exchange only — no multi-turn (still a later milestone).
 8. The delta → snapshot mapping is covered by tests; the live network call is not.
 
-**v3 — make it agentic.** Give the model real tools so each tool call drives a live
-`ActionStep` (pending → running → done) as it actually happens.
+**v3 — make it agentic (done).** The model now calls real tools, each driving a live
+`ActionStep` (pending → running → done) as it happens:
+
+1. Two stubbed, deterministic tools (`getWeather`, `recommendClothing`), declared to the model
+   as function declarations — no external keys, so they're testable.
+2. Agentic loop: the model requests a tool → a name→function dispatcher runs it → request +
+   result append to `contents` → loop until it answers (chains weather → clothing → answer).
+3. Each tool's lifecycle streams as a new SSE event — `{ tool, status: 'running' | 'done' }` —
+   alongside `{text}` / `{done}` / `{error}`.
+4. Inside the seam, those fold into `steps` (running pushes a row, done flips it) — **zero
+   component changes** again.
+5. Tool failures ride the existing `{error}` path; in-progress rows clear on error.
+6. The tool-event → steps mapping is unit-tested; the live model is not.
+7. Single exchange only — multi-turn still parked.
+8. Deployed via the existing CI/CD on push.
 
 **Later / maybe:** multi-turn conversation history (a model-level change — its own milestone),
 multiple agents, off-console surface, design-system extraction.

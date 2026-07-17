@@ -1,4 +1,4 @@
-import type { ConversationState, StepStatus } from "../types";
+import type { ConversationState, ActionStepData } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
@@ -12,18 +12,7 @@ export function sendMessage(
   const controller = new AbortController();
 
   let text = "";
-  const steps = [
-    {
-      id: "s1",
-      label: "Understanding your request",
-      status: "running" as StepStatus,
-    },
-    {
-      id: "s2",
-      label: "Composing a response",
-      status: "pending" as StepStatus,
-    },
-  ];
+  const steps: ActionStepData[] = []; // 🔵 rows are built from real tool events now, not hardcoded
 
   // Emit a fresh copy each time so React never receives a snapshot we later mutate.
   const emit = (isStreaming: boolean, error: string | null = null) => {
@@ -49,7 +38,6 @@ export function sendMessage(
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let firstToken = true;
       let sawDone = false;
 
       while (true) {
@@ -69,17 +57,28 @@ export function sendMessage(
           const payload = JSON.parse(line.slice(5).trim());
 
           if (payload.error) {
+            steps.length = 0;
             emit(false, payload.error);
             return;
           }
           if (payload.done) sawDone = true;
 
-          if (payload.text) {
-            if (firstToken) {
-              steps[0].status = "done";
-              steps[1].status = "running";
-              firstToken = false;
+          // 🔵 tool lifecycle → dynamic tracker rows. THIS is the seam turning real.
+          if (payload.tool) {
+            if (payload.status === "running") {
+              steps.push({
+                id: payload.tool,
+                label: payload.tool,
+                status: "running",
+              });
+            } else if (payload.status === "done") {
+              const step = steps.find((s) => s.id === payload.tool);
+              if (step) step.status = "done";
             }
+            emit(true);
+          }
+
+          if (payload.text) {
             text += payload.text;
             emit(true);
           }
@@ -88,15 +87,15 @@ export function sendMessage(
 
       // Stream closed without a completion marker → it was cut off.
       if (!sawDone) {
+        steps.length = 0;
         emit(false, "The response was cut off. Please try again.");
         return;
       }
 
-      steps[0].status = "done";
-      steps[1].status = "done";
       emit(false);
     } catch {
       // Ignore deliberate cancellations; surface only real failures.
+      steps.length = 0;
       if (!controller.signal.aborted) {
         emit(false, "Something went wrong. Please try again.");
       }

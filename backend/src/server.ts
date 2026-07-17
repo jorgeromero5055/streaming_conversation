@@ -50,12 +50,20 @@ app.post("/api/message", async (req, res) => {
       // 🔵 send the model's OWN turn back UNCHANGED — don't rebuild it (that dropped the signature).
       contents.push({ role: "model", parts: modelParts });
 
-      // 🔵 run each tool, collecting the results into ONE user turn.
+      // 🔵 run each tool, narrating its lifecycle to the frontend over SSE.
       const responseParts = calls.map((call) => {
-        console.log(`Tool requested: ${call.name}`, call.args); // ⚪ temporary — proves the loop in the logs
+        // 🔵 about to run → tracker row goes "running"
+        res.write(
+          `data: ${JSON.stringify({ tool: call.name, status: "running" })}\n\n`
+        );
         const output = runTool(call.name, call.args);
+        // 🔵 finished → tracker row goes "done"
+        res.write(
+          `data: ${JSON.stringify({ tool: call.name, status: "done" })}\n\n`
+        );
         return { functionResponse: { name: call.name, response: { output } } };
       });
+
       contents.push({ role: "user", parts: responseParts });
     }
 
