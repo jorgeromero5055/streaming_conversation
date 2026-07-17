@@ -13,6 +13,18 @@ _(First load may take ~50s while the free backend wakes from idle.)_
 
 ![Agent Console](docs/screenshot.png)
 
+## Try it
+
+The agent has two **stubbed** tools (`getWeather`, `recommendClothing`) that know a few cities.
+Prompts to try:
+
+- _"What should I wear in Paris?"_ → chains `getWeather` → `recommendClothing`; both rows light up
+- _"What's the weather in Tokyo?"_ → calls `getWeather` only
+- _"Hello"_ → no tools, just a streamed reply (empty tracker — that's expected, not a bug)
+
+Known cities: **Paris, London, Tokyo, New York.** Ask about anywhere else and you'll hit the
+error state — the tool has no data, surfaced through the normal error path on purpose.
+
 ## The core idea: one seam
 
 **All backend behavior lives behind a single function — `sendMessage()` — that streams
