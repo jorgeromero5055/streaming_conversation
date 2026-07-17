@@ -1,6 +1,7 @@
 import express from "express";
 import { GoogleGenAI } from "@google/genai";
 import cors from "cors";
+import { runTool, toolDeclarations } from "./tools";
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
@@ -24,16 +25,38 @@ app.post("/api/message", async (req, res) => {
   res.setHeader("X-Accel-Buffering", "no");
 
   try {
-    const stream = await ai.models.generateContentStream({
-      model: "gemini-3.1-flash-lite",
-      contents: userText,
-    });
+    const contents: any[] = [{ role: "user", parts: [{ text: userText }] }];
 
-    for await (const chunk of stream) {
-      const text = chunk.text;
-      if (text) {
-        res.write(`data: ${JSON.stringify({ text })}\n\n`);
+    // 🔵 PATTERN: the agentic loop — ask the model, keep going until it stops asking for tools.
+    while (true) {
+      const stream = await ai.models.generateContentStream({
+        model: "gemini-3.1-flash-lite",
+        contents, // 🔵 the WHOLE conversation so far — not just the latest message
+        config: { tools: [{ functionDeclarations: toolDeclarations }] }, // ⚪ hand the model its tools
+      });
+
+      const calls: any[] = [];
+      const modelParts: any[] = []; // 🔵 the model's ACTUAL reply parts — we send these back verbatim
+      for await (const chunk of stream) {
+        if (chunk.text)
+          res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`); // stream words
+        const parts = chunk.candidates?.[0]?.content?.parts;
+        if (parts) modelParts.push(...parts); // 🔵 keep the REAL parts (they carry the required signature)
+        if (chunk.functionCalls) calls.push(...chunk.functionCalls); // 🔵 gather any tool requests
       }
+      // 🔵 the model talked instead of asking for a tool → we have our answer, stop.
+      if (calls.length === 0) break;
+
+      // 🔵 send the model's OWN turn back UNCHANGED — don't rebuild it (that dropped the signature).
+      contents.push({ role: "model", parts: modelParts });
+
+      // 🔵 run each tool, collecting the results into ONE user turn.
+      const responseParts = calls.map((call) => {
+        console.log(`Tool requested: ${call.name}`, call.args); // ⚪ temporary — proves the loop in the logs
+        const output = runTool(call.name, call.args);
+        return { functionResponse: { name: call.name, response: { output } } };
+      });
+      contents.push({ role: "user", parts: responseParts });
     }
 
     // Explicit completion marker; the client reads its absence as a cut-off stream.
